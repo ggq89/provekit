@@ -67,6 +67,24 @@ func main() {
 				Required: false,
 				Value:    "",
 			},
+			&cli.StringFlag{
+				Name:     "sol_vk",
+				Usage:    "Optional path to write the verifying key in solidity format",
+				Required: false,
+				Value:    "./Verifier.sol",
+			},
+			&cli.StringFlag{
+				Name:     "proof",
+				Usage:    "Optional path to write the proof in solidity format",
+				Required: false,
+				Value:    "./proof",
+			},
+			&cli.StringFlag{
+				Name:     "pub_in",
+				Usage:    "Optional path to write the public inputs in solidity format",
+				Required: false,
+				Value:    "./pub_in_in_sol",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			configFilePath := c.String("config")
@@ -77,6 +95,9 @@ func main() {
 			pkUrl := c.String("pk_url")
 			vkUrl := c.String("vk_url")
 			r1csUrl := c.String("r1cs_url")
+			solVkPath := c.String("sol_vk")
+			proofPath := c.String("proof")
+			pubInPath := c.String("pub_in")
 
 			configFile, err := os.ReadFile(configFilePath)
 			if err != nil {
@@ -123,7 +144,7 @@ func main() {
 				log.Printf("No valid PK/VK url or file combo provided, generating new keys unsafely")
 			}
 
-			if err = circuit.PrepareAndVerifyCircuit(config, r1cs, pk, vk, outputCcsPath); err != nil {
+			if err = circuit.PrepareAndVerifyCircuit(config, r1cs, pk, vk, outputCcsPath, solVkPath, proofPath, pubInPath); err != nil {
 				return fmt.Errorf("failed to prepare and verify circuit: %w", err)
 			}
 

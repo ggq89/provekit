@@ -2,7 +2,6 @@ package circuit
 
 import (
 	"log"
-	"os"
 
 	"reilabs/whir-verifier-circuit/app/typeConverters"
 	"reilabs/whir-verifier-circuit/app/utilities"
@@ -36,8 +35,9 @@ type Circuit struct {
 	MatrixB []MatrixCell
 	MatrixC []MatrixCell
 	// Public Input
-	IO         []byte
-	Transcript []uints.U8 `gnark:",public"`
+	IO          []byte
+	Transcript  []uints.U8        // `gnark:",public"`
+	Placeholder frontend.Variable `gnark:",public"` // just to avoid empty public input
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -81,8 +81,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func verifyCircuit(
-	deferred []Fp256, cfg Config, hints Hints, pk *groth16.ProvingKey, vk *groth16.VerifyingKey, outputCcsPath string, claimedEvaluations ClaimedEvaluations, internedR1CS R1CS, interner Interner,
+func verifyCircuit(deferred []Fp256, cfg Config, hints Hints, pk *groth16.ProvingKey, vk *groth16.VerifyingKey,
+	outputCcsPath, solVkPath, proofPath, pubInPath string, claimedEvaluations ClaimedEvaluations, internedR1CS R1CS, interner Interner,
 ) error {
 	transcriptT := make([]uints.U8, cfg.TranscriptLen)
 	contTranscript := make([]uints.U8, cfg.TranscriptLen)
@@ -176,14 +176,9 @@ func verifyCircuit(
 		log.Fatalf("Failed to compile circuit: %v", err)
 	}
 	if outputCcsPath != "" {
-		ccsFile, err := os.Create(outputCcsPath)
+		err := utilities.WriteCcs(ccs, outputCcsPath)
 		if err != nil {
-			log.Printf("Cannot create ccs file %s: %v", outputCcsPath, err)
-		} else {
-			_, err = ccs.WriteTo(ccsFile)
-			if err != nil {
-				log.Printf("Cannot write ccs file %s: %v", outputCcsPath, err)
-			}
+			log.Printf("Cannot write ccs file %s: %v", outputCcsPath, err)
 		}
 		log.Printf("ccs written to %s", outputCcsPath)
 	}
@@ -196,6 +191,14 @@ func verifyCircuit(
 		}
 		pk = &unsafePk
 		vk = &unsafeVk
+	}
+
+	if solVkPath != "" {
+		err := utilities.WriteVkInSolidity(*vk, solVkPath)
+		if err != nil {
+			log.Printf("Cannot write solidity vk file %s: %v", solVkPath, err)
+		}
+		log.Printf("Solidity vk written to %s", solVkPath)
 	}
 
 	fSums, gSums = parseClaimedEvaluations(claimedEvaluations, false)
@@ -221,6 +224,8 @@ func verifyCircuit(
 		MatrixA: matrixA,
 		MatrixB: matrixB,
 		MatrixC: matrixC,
+
+		Placeholder: 0,
 	}
 
 	witness, _ := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
@@ -231,6 +236,24 @@ func verifyCircuit(
 		log.Printf("Failed to verify proof: %v", err)
 		return err
 	}
+
+	if proofPath != "" {
+		// err := utilities.WriteProof(proof, proofPath)
+		err := utilities.WriteProofInSolidity(proof, proofPath)
+		if err != nil {
+			log.Printf("Cannot write solidity proof file %s: %v", proofPath, err)
+		}
+		log.Printf("Solidity proof written to %s", proofPath)
+	}
+
+	if pubInPath != "" {
+		err := utilities.WritePublicWitnessInJson(publicWitness, pubInPath)
+		if err != nil {
+			log.Printf("Cannot write public input file %s: %v", pubInPath, err)
+		}
+		log.Printf("Public input written to %s", pubInPath)
+	}
+
 	return nil
 }
 
